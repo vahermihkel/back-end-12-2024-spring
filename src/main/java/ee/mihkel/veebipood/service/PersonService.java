@@ -55,12 +55,8 @@ public class PersonService {
 
         person.setAdmin(false);
 
-        personRepository.save(person);
-        AuthToken token = new AuthToken();
-        token.setToken(person.getEmail());
-        token.setExpiration(new Date());
-
-        return token;
+        Person dbPerson = personRepository.save(person);
+        return generateToken(dbPerson);
     }
 
     public AuthToken login(EmailPassword emailPassword) {
