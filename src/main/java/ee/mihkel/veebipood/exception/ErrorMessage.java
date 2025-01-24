@@ -1,33 +1,12 @@
 package ee.mihkel.veebipood.exception;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
 import java.util.Date;
 
-
-@Setter
-@Getter
+@Data // getteri, setteri, noArgsConstructori
 public class ErrorMessage {
-    private Date timestamp;
-    private int status;
-    private String error;
-//    private String path;
-
-
-    //    public String getPath() {
-//        return path;
-//    }
-//
-//    public void setPath(String path) {
-//        this.path = path;
-//    }
+    private String message;
+    private int statusCode;
+    private Date date;
 }
-
-
-//{
-//        "timestamp": "2025-01-08T10:50:23.769+00:00",
-//        "status": 500,
-//        "error": "Internal Server Error",
-//        "path": "/products"
-//        }

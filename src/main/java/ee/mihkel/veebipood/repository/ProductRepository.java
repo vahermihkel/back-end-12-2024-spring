@@ -4,19 +4,38 @@ import ee.mihkel.veebipood.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
-//import org.springframework.stereotype.Repository;
 
-//@Repository
-public interface ProductRepository extends JpaRepository<Product, Long> {
+// CrudRepostiory
+// JpaRepository --> annab mulle CRUD,  sorteerimise, pagineerimise, kõigi kustutamie
 
-    List<Product> findByOrderByIdAsc();
-    Page<Product> findByOrderByIdAsc(Pageable pageable);
+public interface ProductRepository extends JpaRepository<Product, String> {
 
-    Page<Product> findByCategory_IdOrderByIdAsc(Long id, Pageable pageable);
-    // kategooriate järgi leidmine
+    //@Query ....   SELECT * FROM category WHERE product.category =
+    //List<Product> findByCategory_Id(Long id);
 
 
-    // lehekülgede kaupa väljastamine
+    // avalehel
+    Page<Product> findByActiveTrueOrderByNameAsc(Pageable pageable);
+
+    Page<Product> findByActiveTrue(Pageable pageable);
+
+    // admin lehel
+    List<Product> findByOrderByNameAsc();
+
+    Page<Product> findByCategory_IdAndActiveTrueOrderByNameAsc(Long id, Pageable pageable);
+
+    // SELECT * FROM product WHERE active = true SORT price ASC
+//    Page<Product> findByActiveTrueOrderByPriceAsc(Pageable pageable);
+//
+//    Page<Product> findByCategory_IdAndActiveTrueOrderByPriceAsc(Long id, Pageable pageable);
+//
+//    Page<Product> findByActiveTrueOrderByPriceDesc(Pageable pageable);
+//
+//    Page<Product> findByCategory_IdAndActiveTrueOrderByPriceDesc(Long id, Pageable pageable);
+
+
+    Product findFirstByPriceNotNullOrderByPriceDesc();
 }

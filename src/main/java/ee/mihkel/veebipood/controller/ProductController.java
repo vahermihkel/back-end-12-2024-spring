@@ -1,137 +1,204 @@
 package ee.mihkel.veebipood.controller;
 
+import ee.mihkel.veebipood.dto.ProductNutrientsumDTO;
+import ee.mihkel.veebipood.entity.Category;
 import ee.mihkel.veebipood.entity.Product;
+import ee.mihkel.veebipood.repository.CategoryRepository;
 import ee.mihkel.veebipood.repository.ProductRepository;
+import ee.mihkel.veebipood.service.ProductService;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+//import java.util.ArrayList;
+//import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-// API päringute vastuvõtmiseks. Front-end suhtleb back-endiga selle kaudu.
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "http://localhost:3000")
 @RestController
+@Log4j2
 public class ProductController {
 
     @Autowired
-    ProductRepository productRepository;
+    private ProductService productService;
 
-//    private ProductRepository productRepository2;
-//
-//    public ProductController(ProductRepository productRepository) {
-//        this.productRepository2 = productRepository;
+    @Autowired
+    private ProductRepository productRepository; // selle abil suhtleme andmabaasiga
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+//    List<Product> tooted = new ArrayList<>(Arrays.asList(
+//            new Product("Coca", 1.1, true, 150),
+//            new Product("Fanta", 1.0, true, 100),
+//            new Product("Sprite", 0.9, false, 0)
+//    ));
+
+    @GetMapping("product/{productName}")
+    public Product getProduct(@PathVariable String productName) {
+        return productRepository.findById(productName).orElseThrow();
+    }
+
+    // localhost:8080/public-products?page=0&size=2
+    @GetMapping("public-products/{categoryId}")
+    public Page<Product> getPublicProducts(@PathVariable Long categoryId,Pageable pageable) {
+        //log.info(pageable.getPageNumber());
+        if (categoryId == -1) {
+            return productRepository.findByActiveTrueOrderByNameAsc(pageable);
+        }
+        return productRepository.findByCategory_IdAndActiveTrueOrderByNameAsc(categoryId, pageable);
+    }
+
+//    @GetMapping("products-by-category/{categoryId}")
+//    public Page<Product> getProductsByCategory(@PathVariable Long categoryId, Pageable pageable) {
+//        return productRepository.findByCategory_IdAndActiveTrueOrderByNameAsc(categoryId, pageable);
 //    }
 
     // localhost:8080/products
-
     @GetMapping("products")
     public List<Product> getProducts() {
-//        List<Product> products = new ArrayList<>();
-//        products.add(new Product("Coca", 1.2, true, ""));
-//        products.add(new Product());
-//        return products;
-        return productRepository.findByOrderByIdAsc(); // SELECT * FROM product
+        return productRepository.findByOrderByNameAsc();
     }
 
-    // pageable tekitab automaatselt järgmised @RequestParamid juurde:
-    // public-products?page=0&size=30&sort=id
-    @GetMapping("public-products")
-    public Page<Product> getPublicProducts(@RequestParam Long categoryId, Pageable pageable) {
-        //pageable.getPageSize()
-        if (categoryId == 0) {
-            return productRepository.findByOrderByIdAsc(pageable);
-        } else {
-            return productRepository.findByCategory_IdOrderByIdAsc(categoryId, pageable);
+    // default väärtused:
+    // numbriline - 0
+    // boolean - false
+    // String - null
+    // object (võõrvõti) - null
+
+    // 4ga algavad - front-end viga
+    // 400 - bad request ehk üldine viga
+    // 401/403 - autentimine
+    // 404 - URL valesti
+    // 405 - vale method
+    // 415 - valel kujul body (pole JSON)
+
+    // 5ga algavad - back-end viga
+    // back-end viskab exceptioni välja
+
+    // localhost:8080/products
+    @PostMapping("products")
+    public List<Product> addProduct(@RequestBody Product newProduct) {
+        //tooted.add(newProduct);
+        String email = SecurityContextHolder.getContext().getAuthentication().getPrincipal().toString();
+        if (newProduct.getName() == null || newProduct.getName().isEmpty()) {
+            log.error("Wanted to add product but name was empty by user {}: {}", email, newProduct);
+            throw new RuntimeException("Nimi on puudu");
         }
+        if (newProduct.getPrice() < 0) {
+            log.error("Wanted to add product but price was negative by user {}: {}", email, newProduct);
+            throw new RuntimeException("Hind negatiivne");
+        }
+        if (newProduct.getCategory() == null || newProduct.getCategory().getId() == null || newProduct.getCategory().getId() <= 0) {
+            log.error("Wanted to add product but category was empty by user {}: {}", email, newProduct);
+            throw new RuntimeException("Kategooria on puudu");
+        }
+        if (productRepository.findById(newProduct.getName()).isEmpty()) {
+            newProduct.setActive(true);
+            if (newProduct.getStock() < 0) {
+                log.error("Wanted to add product with negative stock, changed it to 0 by user {}: {}", email, newProduct);
+                newProduct.setStock(0);
+            }
+            productRepository.save(newProduct);
+            log.info("Product saved by user {}: {}", email, newProduct);
+        }
+            return productRepository.findByOrderByNameAsc();
     }
 
-//    @GetMapping("products-by-category")
-//    public Page<Product> getProductsByCategory(@RequestParam Long categoryId, Pageable pageable) {
-//        return productRepository.findByCategory_IdOrderByIdAsc(categoryId, pageable);
-//        // SELECT * FROM product WHERE p.category.id = categoryId
-//    }
-
-    //Ei tehta: add-product
-    // POST localhost:8080/products?productName=Coca
-    // POST localhost:8080/products?productName=Fanta
-    @PostMapping("products") // TODO: Ühildama POST ja PUT päringute veateated
-    public List<Product> addProduct(@RequestBody Product product) {
-        // INSERT INTO product VALUES ()
-        //productRepository.save(new Product(productName, 1.2, true, ""));
-        if (product.getName() == null) {
-            throw new RuntimeException("Toote nimi puudub");
+    @DeleteMapping("products/{productName}")
+    public List<Product> deleteProduct(@PathVariable String productName) {
+        try {
+            productRepository.deleteById(productName);
+        } catch (Exception e) {
+            throw new RuntimeException("Ei saa kustutada toodet, mis on tellimuses");
         }
-        if (product.getName().toLowerCase().charAt(0) == product.getName().charAt(0)) {
-            throw new RuntimeException("Toode väikse tähega");
-        }
-        if (product.getPrice() < 0) {
-            throw new RuntimeException("Hind miinusmärgiga");
-        }
-        if (product.getId() != null) {
-            throw new RuntimeException("ID-d ei tohi lisades lisada (genereerub automaatselt)");
-        }
-        product.setActive(true);
-        productRepository.save(product);
-        return productRepository.findByOrderByIdAsc();
-    }
-
-    // Lisamisel @RequestParam vs @PathVariable:
-    // localhost:8080/products?productName=Coca&price=1.2&active=true&image=http
-    // localhost:8080/products/Coca/1.2/true/http
-
-    // @RequestBody {id: 2} --> kustutamisel ja 1 võtmisel EI
-    // @RequestParam --> localhost:8080/products?id=1
-    // @PathVariable --> localhost:8080/products/1
-
-    // Soovitus:
-    // Kasutada @RequestParamit siis kui mul on 2 või enam muutujat ja GET päring
-    // Kasutada @PathVariable siis kui mul on täpselt 1 muutuja
-    // Kasutada @RequestBody siis kui mul on POST päring
-
-
-    @DeleteMapping("products/{id}")
-    public List<Product> deleteProduct(@PathVariable Long id) {
-        productRepository.deleteById(id);
-        return productRepository.findByOrderByIdAsc();
-    }
-
-    @GetMapping("products/{id}")
-    public Product getProduct(@PathVariable Long id) {
-        // Optional --> võib tagastada ka "null"
-        Optional<Product> productOptional = productRepository.findById(id);
-        return productOptional.orElseThrow(); // eelistatud, sest nimes ütleb exceptionit
-        // return productOptional.get(); <--- täpselt sama
-        //return productOptional.orElse(null);
-    }
-
-    // broneering -> available: false
-    // tellimus -> makstud: true
-    @PatchMapping("product-active")
-    public List<Product> changeProductActive(@RequestParam Long id, @RequestParam boolean active) {
-        // kui tahan ühte kindlat välja muuta, siis pean võtma andmebaasist, muutma
-        Product product = productRepository.findById(id).orElseThrow(); // findById(id).orElseThrow() . Lazy ehk võtab ainult mälukoha
-        product.setActive(active);
-        // ja tagasi andmebaasi tervikuna panema
-        productRepository.save(product);
-        return productRepository.findByOrderByIdAsc();
+        return productRepository.findByOrderByNameAsc();
     }
 
     @PutMapping("products")
-    public List<Product> editProduct(@RequestBody Product product) {
-        if (product.getName() == null || product.getName().toLowerCase().charAt(0) == product.getName().charAt(0)) {
-            throw new RuntimeException("Toode peab olema suure tähega");
+    public List<Product> editProduct(@RequestBody Product newProduct) {
+        if (productRepository.findById(newProduct.getName()).isPresent()) {
+            productRepository.save(newProduct); // INSERT INTO products
         }
-        if (product.getPrice() <= 0) {
-            throw new RuntimeException("Hind peab olema plussmärgiga");
+        return productRepository.findByOrderByNameAsc(); // SELECT * FROM products
+    }
+
+    @PatchMapping("change-active")
+    public List<Product> changeActive(@RequestParam String productName, @RequestParam boolean active) {
+        // {id: 1, active: false}
+        Product product = productRepository.findById(productName).orElseThrow(); // reference --> lazy loading
+        product.setActive(active);
+        productRepository.save(product);
+        return productRepository.findByOrderByNameAsc();
+    }
+
+    // Patch - ühe kindla välja muutmine
+    @PatchMapping("change-stock")
+    public List<Product> changeStock(@RequestBody Product changedProduct) {
+                                            // võtan andmebaasist primaatvõtme alusel
+        Optional<Product> productOptional = productRepository.findById(changedProduct.getName());
+        Product product = productOptional.orElseThrow();
+        product.setStock(changedProduct.getStock());
+        productRepository.save(product);
+
+//        Optional<Product> productOptional = productRepository.findById(changedProduct.getName());
+//        if (productOptional.isPresent()) {
+//            Product product = productOptional.get();
+//            product.setStock(changedProduct.getStock());
+//            productRepository.save(product);
+//        }
+        return productRepository.findByOrderByNameAsc();
+    }
+
+    // localhost:8080/increase-stock?name=Coca
+    @PatchMapping("increase-stock")
+    public List<Product> increaseStock(@RequestParam String name) {
+        Product product = productRepository.findById(name).orElseThrow();
+        product.setStock(product.getStock() + 1);
+        productRepository.save(product);
+        return productRepository.findByOrderByNameAsc();
+    }
+
+    // localhost:8080/decrease-stock?name=Coca
+    @PatchMapping("decrease-stock")
+    public List<Product> decreaseStock(@RequestParam String name) {
+        Product product = productRepository.findById(name).orElseThrow();
+        if (product.getStock() <= 0) {
+            throw new RuntimeException("Ei saa vähendada kui on kogus 0");
         }
-        if (product.getId() == null || productRepository.findById(product.getId()).isEmpty()) {
-            throw new RuntimeException("Sellise ID-ga toodet pole");
+        product.setStock(product.getStock() - 1);
+        productRepository.save(product);
+        return productRepository.findByOrderByNameAsc();
+    }
+
+    @GetMapping("all-stock")
+    public int allStock() {
+        List<Product> products = productRepository.findAll();
+        int sum = 0;
+        for (Product p: products) {
+            sum += p.getStock();
         }
-        productRepository.save(product); // .save kasutatakse nii lisamiseks kui muutmiseks
-        return productRepository.findByOrderByIdAsc();
+        return sum;
+    }
+
+    @GetMapping("products-nutrients")
+    public List<ProductNutrientsumDTO> productsNutrients() {
+        List<Product> products = productRepository.findAll();
+        return productService.calculateNutrientsSum(products);
+    }
+
+    @PatchMapping("product-category")
+    public List<Product> updateProductCategory(@RequestParam String productName, Long categoryId) {
+        Product product = productRepository.findById(productName).orElseThrow();
+        Category category = categoryRepository.findById(categoryId).orElseThrow();
+        product.setCategory(category);
+        productRepository.save(product);
+        return productRepository.findByOrderByNameAsc();
     }
 
 

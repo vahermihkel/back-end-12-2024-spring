@@ -5,6 +5,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -12,9 +13,12 @@ import lombok.*;
 @Setter
 @Entity
 @ToString
-public class Category {
+public class Person {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String name;
+    private String email;
+    private String firstName;
+    private String lastName;
+    private String password;
+    @ColumnDefault("false")
+    private boolean admin;
 }

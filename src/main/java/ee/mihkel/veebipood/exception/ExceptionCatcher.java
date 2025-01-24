@@ -6,19 +6,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.Date;
 
-@ControllerAdvice // automaatselt kõikidele kontrolleritele, kui juhtub exception, siis vahetab
-// mudeli meie mudeli vastu
+@ControllerAdvice // <-- läheb automaatikaga kõikidele kontrolleritele
 public class ExceptionCatcher {
 
     @ExceptionHandler
     public ResponseEntity<ErrorMessage> handleException(RuntimeException e) {
-
-        ErrorMessage errorMessage = new ErrorMessage();
-        errorMessage.setTimestamp(new Date());
-        errorMessage.setStatus(400);
-        // throw new RuntimeException("Sellise ID-ga on olemas")
-        errorMessage.setError(e.getMessage());
-//        errorMessage.setPath(e.toString());
-        return ResponseEntity.status(400).body(errorMessage);
+        ErrorMessage message = new ErrorMessage();
+        message.setStatusCode(400);
+        message.setDate(new Date());
+        message.setMessage(e.getMessage());
+        return ResponseEntity.badRequest().body(message);
     }
 }
